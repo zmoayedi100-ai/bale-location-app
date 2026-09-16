@@ -1,0 +1,1 @@
+# bale-location-app
