@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ارسال موقعیت مکانی</title>
+
+  <!-- مهم: این اسکریپت باید قبل از هر اسکریپت دیگری در head قرار بگیرد -->
+  <script src="https://tapi.bale.ai/miniapp.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Tahoma, "Vazirmatn", sans-serif;
+      background-color: #f5f6f8;
+      color: #1c1c1e;
+    }
+    .wrapper {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .icon {
+      font-size: 56px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 8px 0;
+    }
+    p.desc {
+      font-size: 14px;
+      color: #6b6b70;
+      margin: 0 0 28px 0;
+      line-height: 1.8;
+      max-width: 320px;
+    }
+    button#sendLocationBtn {
+      background-color: #0d6efd;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      max-width: 320px;
+      transition: opacity 0.2s ease;
+    }
+    button#sendLocationBtn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 20px;
+      font-size: 14px;
+      max-width: 320px;
+      line-height: 1.8;
+    }
+    .status.error {
+      color: #d92d20;
+      background: #fff1f0;
+      border: 1px solid #ffccc7;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .status.info {
+      color: #0d6efd;
+    }
+    .status.success {
+      color: #12805c;
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(13,110,253,0.3);
+      border-top-color: #0d6efd;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="icon">📍</div>
+    <h1>ارسال موقعیت مکانی</h1>
+    <p class="desc">
+      برای ادامه، روی دکمه زیر بزنید تا موقعیت دقیق GPS شما خوانده شده
+      و به‌صورت خودکار برای ربات ارسال شود.
+    </p>
+
+    <button id="sendLocationBtn">ارسال موقعیت من</button>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('sendLocationBtn');
+      var statusEl = document.getElementById('status');
+
+      // اگر مینی‌اپ داخل بله باز شده باشد، این شیء ساخته می‌شود.
+      var WebApp = (window.Bale && window.Bale.WebApp) ? window.Bale.WebApp : null;
+
+      // اعلام آماده بودن به اپ بله (در صورت وجود این متد در SDK)
+      try {
+        if (WebApp && typeof WebApp.ready === 'function') {
+          WebApp.ready();
+        }
+        if (WebApp && typeof WebApp.expand === 'function') {
+          WebApp.expand();
+        }
+      } catch (e) {
+        // اگر این متدها در این نسخه از SDK وجود نداشته باشند، مشکلی پیش نمی‌آید
+        console.warn('WebApp.ready/expand در دسترس نیست:', e);
+      }
+
+      function setStatus(message, type) {
+        statusEl.className = 'status ' + (type || '');
+        statusEl.innerHTML = message;
+      }
+
+      function setLoading(isLoading) {
+        btn.disabled = isLoading;
+        if (isLoading) {
+          btn.innerHTML = 'در حال دریافت موقعیت<span class="spinner"></span>';
+        } else {
+          btn.textContent = 'ارسال موقعیت من';
+        }
+      }
+
+      function sendDataToBot(payload) {
+        var jsonString = JSON.stringify(payload);
+
+        if (WebApp && typeof WebApp.sendData === 'function') {
+          try {
+            WebApp.sendData(jsonString);
+            setStatus('موقعیت شما با موفقیت ارسال شد ✅', 'success');
+            // کمی مکث تا پیام برای کاربر قابل مشاهده باشد، سپس بستن مینی‌اپ
+            setTimeout(function () {
+              try {
+                if (typeof WebApp.close === 'function') {
+                  WebApp.close();
+                }
+              } catch (e) {
+                console.warn('WebApp.close در دسترس نیست:', e);
+              }
+            }, 800);
+          } catch (err) {
+            console.error('خطا در ارسال داده به ربات:', err);
+            setStatus('خطا در ارسال موقعیت به ربات. لطفاً دوباره تلاش کنید.', 'error');
+            setLoading(false);
+          }
+        } else {
+          // این حالت یعنی صفحه خارج از اپ بله باز شده است (مثلاً در مرورگر معمولی برای تست)
+          setStatus(
+            'این صفحه باید از داخل اپلیکیشن بله باز شود تا بتواند موقعیت را ارسال کند.<br>' +
+            'مختصات دریافت‌شده (فقط جهت تست): ' + payload.latitude + ', ' + payload.longitude,
+            'info'
+          );
+          setLoading(false);
+        }
+      }
+
+      function handleSuccess(position) {
+        var payload = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp
+        };
+        sendDataToBot(payload);
+      }
+
+      function handleError(error) {
+        var message;
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = 'دسترسی به موقعیت مکانی رد شد. لطفاً از تنظیمات مرورگر یا اپ، دسترسی موقعیت را فعال کنید و دوباره تلاش کنید.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = 'در حال حاضر امکان دریافت موقعیت مکانی وجود ندارد. لطفاً GPS دستگاه خود را روشن کنید و دوباره تلاش کنید.';
+            break;
+          case error.TIMEOUT:
+            message = 'دریافت موقعیت مکانی بیش از حد طول کشید. لطفاً دوباره تلاش کنید.';
+            break;
+          default:
+            message = 'خطای نامشخصی در دریافت موقعیت مکانی رخ داد. لطفاً دوباره تلاش کنید.';
+        }
+        setStatus(message, 'error');
+        setLoading(false);
+      }
+
+      function requestLocation() {
+        setStatus('', '');
+        setLoading(true);
+
+        if (!('geolocation' in navigator)) {
+          setStatus('مرورگر یا محیط اجرای فعلی از دریافت موقعیت مکانی پشتیبانی نمی‌کند.', 'error');
+          setLoading(false);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          handleError,
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      }
+
+      btn.addEventListener('click', requestLocation);
+    })();
+  </script>
+</body>
+</html>
